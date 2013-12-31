@@ -20,6 +20,36 @@
 		this.url=container.substring(0, qidx) + '/' + file.name + container.substring(qidx);
 		this.blockSize=blockSize;
 	}
+	blob.prototype.init=function(){
+		this.loaded=0;
+		this.speed={};
+		this.start=new Date();
+		this.end=null;
+	};
+	var calcSpeed=function(blob){
+		var now = new Date();
+		if(!blob._markLoaded){
+			blob._markLoaded=0;
+			blob._markTime=blob.start;
+		}
+		if(now==blob._markTime){
+			return;
+		}
+		var speed=blob.speed;
+		var current=(blob.loaded-blob._markLoaded)/((now-blob._markTime)/1000);
+		if(typeof(speed.max)=="undefined"){
+			speed.max=current;
+			speed.min=current;
+		}else{
+			speed.max=Math.max(speed.max,current);
+			speed.min=Math.min(speed.min,current);
+		}
+		speed.current=current;
+		speed.average=blob.loaded/((now-blob.start)/1000);
+		blob._markLoaded=blob.loaded;
+		blob._markTime=now;
+
+	};
 	blob.prototype.send=function(beforeSend,progress,success,error){
 		var $t=this;
 		$t.blocks=[];
@@ -40,20 +70,30 @@
 		}
 		var blockProgress=function(ev){
 			if (progress) {
+				$t.loaded=0;
 				for (var i = $t.blocks.length - 1; i >= 0; i--) {
 					$t.loaded+=	$t.blocks[i].loaded|0;
 				};
+				calcSpeed($t);
 				progress.call($t,ev)				
 			};
 		}
-		var csize=0;
-		if(beforeSend){
-			beforeSend.call($t);
+		var blockBeforeSend=function(xhr){
+			$t.start= new Date();
+			if(beforeSend){
+				beforeSend.call($t,this,xhr);
+			}
 		}
+		var csize=0;
 		while(csize<this.size){
 			var _block=new block(this,csize,this.blockSize);
+			if(csize==0){
+				$t.init();
+				_block.send(blockBeforeSend,blockProgress,blockSuccess,blockError);
+			}else{
+				_block.send(null,blockProgress,blockSuccess,blockError);				
+			}
 			csize+=this.blockSize;
-			_block.send(blockProgress,blockSuccess,blockError);
 		}
 	};
 	blob.prototype.commit=function(success,error){
@@ -78,12 +118,14 @@
             },
             success: function (data, status) {
             	$t.status='success';
+            	$t.end=new Date();
             	if(success){
             		success.call($t,data,status);
             	}
             },
             error: function (xhr, desc, err) {
             	$t.status='error';
+            	$t.end=new Date();
             	if(error){
             		error.call($t,xhr,desc,err);
             	}
@@ -97,7 +139,7 @@
 		this._preSize=size;
 		this.id=btoa("block-"+pad(blob.blocks.length,6)).replace(/=/g,'a');
 	};
-	block.prototype.send=function(progress,success,error){
+	block.prototype.send=function(beforeSend,progress,success,error){
 		var $t=this,blob=this.blob;
 		var reader =new FileReader();
 		reader.onloadend=function(ev){
@@ -127,6 +169,9 @@
                     beforeSend: function(xhr) {
                         xhr.setRequestHeader('x-ms-blob-type', 'BlockBlob');
                         xhr.setRequestHeader('Content-Length', $t.size);
+                        if(beforeSend){
+                        	beforeSend.call($t,xhr);
+                        }
                     },
                     success: function (data, status) {
                         $t.status='success';
@@ -152,7 +197,7 @@
 		options:{
 			url:null,
 			blockSizeKB:1024,
-			beforeSend:null,
+			beforeSend:null,//function(blob)
 			error:null,	//function(blob,xhr, desc, err)
 			progress:null,//function(blob)
 			success:null //function(blob,data,status)

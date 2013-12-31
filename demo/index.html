@@ -22,8 +22,16 @@
 						setProgress(blob.element.parent(),blob.loaded,blob.size);
 					},
 					success:function(blob,data,status){
-						console.log('success');
-						log('update '+blob.name+' success.','success');
+						var msg='update '+blob.name+' success.<br/>'
+							+'total size:'+(blob.size/1000).toFixed(2)+'(kb)<br/>'
+							+'total time:'+(blob.end-blob.start).toFixed(2)+'(ms)<br/>'
+							+'max speed:'+(blob.speed.max/1000).toFixed(2)+'(kb/s)<br/>'
+							+'min speed:'+(blob.speed.min/1000).toFixed(2)+'(kb/s)<br/>'
+							+'average speed:'+(blob.speed.average/1000).toFixed(2)+'(kb/s)';
+
+						log(msg,'success');
+						console.log(blob);
+						window.blob=blob;
 					},
 					error:function(blob,xhr, desc, err){
 						log('update '+blob.name+' error.','danger');
@@ -53,7 +61,7 @@
 				}
 				var div=$('<div class="alert"/>')
 					.addClass('alert-'+type)
-					.text(message)
+					.html(message)
 					.appendTo($('#output'));
 			}
 
