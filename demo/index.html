@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="http://netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet">
+	<script type="text/javascript" src="http://code.jquery.com/jquery-2.0.3.min.js"></script>
+	<script type="text/javascript" src="http://code.jquery.com/ui/1.10.3/jquery-ui.min.js"></script>
+	<script type="text/javascript" src="../src/jquery.blobuploader.js"></script>
+	<script src="http://netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+	<script type="text/javascript">
+		$(function(){
+			$('form').blobuploader(
+				{
+					url:'https://neeostorage.blob.core.chinacloudapi.cn/normal?sv=2013-08-15&sr=c&sig=YFAMUwxSc48Mc2yBrKJq%2B0b4f5UjWOGNyGK9ZxIHzlE%3D&st=2013-12-31T05%3A57%3A06Z&se=2014-01-01T01%3A57%3A06Z&sp=rwdl',
+					beforeSend:function(blob){
+						setProgress(blob.element.parent(),blob.loaded,blob.size);
+					},
+					progress:function(blob){
+						console.log('blob progress.');
+						setProgress(blob.element.parent(),blob.loaded,blob.size);
+					},
+					success:function(blob,data,status){
+						console.log('success');
+						log('update '+blob.name+' success.','success');
+					},
+					error:function(blob,xhr, desc, err){
+						log('update '+blob.name+' error.','danger');
+					}
+				});
+
+			function setProgress(element,loaded,total){
+				if(!total){
+					total=100;
+				}
+				var percent=loaded/total*100;
+				element.find('.progress-bar').attr({
+					'aria-valuenow':loaded,
+					'aria-valuemax':total,
+				}).css('width',percent+'%').find('.sr-only').text(percent+'% Complete');
+			}
+
+			function addFile(){
+				var copy=$('.form-group:first').clone();
+				$('#placeholder').append(copy);
+				setProgress(copy,0,0);
+			}
+
+			function log(message,type){
+				if(!type){
+					type='info';
+				}
+				var div=$('<div class="alert"/>')
+					.addClass('alert-'+type)
+					.text(message)
+					.appendTo($('#output'));
+			}
+
+			$('#btnAdd').click(addFile);
+			$('#btnUpload').click(function(){
+				$('form').blobuploader('upload');
+			})
+		})
+	</script>
+</head>
+<body>
+	<div class="container body-content">
+		<div class="row">
+			<form class="form-horizontal" role="form">
+				<div class="form-group">
+					<input type="file" class="form-control" />
+					<div class="progress">
+						<div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;">
+							<span class="sr-only">0% Complete</span>
+						</div>
+					</div>
+				</div>
+				<span id="placeholder"></span>
+				<div class="form-group">
+					<div class="col-sm-offset-2 col-sm-10">
+						<button type="button" id='btnAdd' class="btn btn-success">Add File</button>
+						<button type="button" id='btnUpload' class="btn btn-primary">Upload</button>
+					</div>
+				</div>
+				<div class="form-group">
+				<div class="panel panel-default">
+					<div class="panel-heading">
+						<h3 class="panel-title">Output Message</h3>
+					</div>
+					<div id="output" class="panel-body">
+					</div>
+				</div>
+				</div>
+			</form>
+		</div>
+	</div>
+</body>
+</html>
