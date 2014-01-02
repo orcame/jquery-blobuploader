@@ -1,16 +1,17 @@
 ﻿<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<html>
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS Blob Uploader</title>
     <link href="../lib/css/bootstrap.min.css" rel="stylesheet">
     <link href="../lib/css/prettify.css" rel="stylesheet">
+    <link href="css/site.css" rel="stylesheet">
     <script type="text/javascript" src="../lib/js/jquery-2.0.3.min.js"></script>
     <script type="text/javascript" src="../lib/js/jquery-ui.min.js"></script>
-    <script type="text/javascript" src="../src/jquery.blobuploader.js"></script>
     <script type="text/javascript" src="../lib/js/bootstrap.min.js"></script>
     <script type="text/javascript" src="../lib/js/prettify.js"></script>
+    <script type="text/javascript" src="../src/jquery.blobuploader.min.js"></script>
     <script type="text/javascript">
         $(function () {
             var ju = {
@@ -35,28 +36,28 @@
                         this.sasUrl.val(sas);
                     }
                     this.list.blobuploader(
-				    {
-				        url: ju.sasUrl.val(),
-				        beforeSend: function (blob) {
-				        },
-				        progress: function (blob) {
-				            ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
-				        },
-				        success: function (blob, data, status) {
-				            var msg = 'total time:' + (blob.end - blob.start).toFixed(2) + '(ms)<br/>'
-							    + 'max speed:' + (blob.speed.max / 1000).toFixed(2) + '(kb/s)<br/>'
-							    + 'min speed:' + (blob.speed.min / 1000).toFixed(2) + '(kb/s)<br/>'
-							    + 'average speed:' + (blob.speed.average / 1000).toFixed(2) + '(kb/s)';
-				            ju.status(blob.element, msg);
-				            var download = '<a target="_blank" role="button" class="btn btn-link" href="'
+                    {
+                        url: ju.sasUrl.val(),
+                        beforeSend: function (blob) {
+                        },
+                        progress: function (blob) {
+                            ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
+                        },
+                        success: function (blob, data, status) {
+                            var msg = 'total time:' + (blob.end - blob.start).toFixed(2) + '(ms)<br/>'
+                                + 'max speed:' + (blob.speed.max / 1000).toFixed(2) + '(kb/s)<br/>'
+                                + 'min speed:' + (blob.speed.min / 1000).toFixed(2) + '(kb/s)<br/>'
+                                + 'average speed:' + (blob.speed.average / 1000).toFixed(2) + '(kb/s)';
+                            ju.status(blob.element, msg);
+                            var download = '<a target="_blank" role="button" class="btn btn-link" href="'
                                 + blob.blobUrl
                                 + '" >' + blob.name + '</a>';
-				            ju.log(blob.element.closest('tr').find('td:first'), download);
-				        },
-				        error: function (blob, xhr, desc, err) {
-				            ju.status(blob.element, 'upload ' + blob.name + ' error.', 'danger');
-				        }
-				    });
+                            ju.log(blob.element.closest('tr').find('td:first'), download);
+                        },
+                        error: function (blob, xhr, desc, err) {
+                            ju.status(blob.element, 'upload ' + blob.name + ' error.', 'danger');
+                        }
+                    });
                     this.btnClear.click(function () {
                         ju.clear();
                     });
@@ -215,66 +216,11 @@
             gapi.client.load('urlshortener', 'v1', function () { });
         }
     </script>
-    <style type="text/css">
-        .jumbotron {
-            padding-top: 10px;
-            text-align: center;
-            padding-bottom: 10px;
-        }
-
-            .jumbotron h2 {
-                font-size: 35px;
-            }
-
-        #btnAddFile {
-            position: relative;
-        }
-
-            #btnAddFile input {
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                background: transparent;
-                float: left;
-                opacity: 0;
-                filter: alpha(opacity=0);
-                -ms-filter: "alpha(opacity=0)";
-                -khtml-opacity: 0;
-                -moz-opacity: 0;
-            }
-
-        .table input[type="file"] {
-            display: none;
-        }
-
-        .table th {
-            width: 30%;
-        }
-
-        .percent {
-            font-size: 20px;
-            font-weight: 500;
-        }
-
-        .input-sm {
-            max-width: 70px;
-            display: inline;
-        }
-
-        .loading {
-            background: #00ff90;
-            display: none;
-        }
-    </style>
 </head>
 <body>
     <div class="container body-content">
         <div class="page-header">
-            <h1>Upload Blob to Azure Storage</h1>
+            <h1>Upload Blob to Azure Storage</h1><a role="button" href="http://azuretk.com" target="_blank" class="btn btn-link btn-lg pull-right">Azure Training Kit</a>
             <p class="lead">A demo used to show how to upload file to azure blob by javascript.</p>
         </div>
         <div class="jumbotron">

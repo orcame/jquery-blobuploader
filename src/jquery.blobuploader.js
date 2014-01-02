@@ -1,13 +1,12 @@
 (function ($, undefined) {
-    var totalSize = 0;
-
+    'use strict';
     function pad(number, length) {
         var str = '' + number;
         while (str.length < length) {
             str = '0' + str;
         }
         return str;
-    };
+    }
     var status = {
         init: 0,
         uploading: 1,
@@ -28,7 +27,7 @@
 
         this.blockSize = blockSize;
         this.blocks = [];
-    }
+    };
     blob.prototype.init = function () {
         this.loaded = 0;
         this.speed = { max: 0, min: Infinity };
@@ -124,7 +123,6 @@
     blob.prototype.hasUploadingBlocks = function () {
         return this.uploadingBlocks().length > 0;
     };
-
     var sendBlobBlocks = function (blob, blocks, beforeSend, progress, success, error) {
         blocks = blocks || blob.blocks;
         var _beforeSend = null, _success = null, _error = null;
@@ -134,7 +132,7 @@
                     beforeSend.apply(this.blob, arguments);
                 }
             }
-        };
+        }
         if (success) {
             _success = function () {
                 if (this.blob.status == status.success) {
@@ -153,7 +151,7 @@
         for (var i = 0; i < len ; i++) {
             var block = blocks[i];
             block.send(_beforeSend, progress, _success, _error);
-        };
+        }
     };
     blob.prototype.send = function (beforeSend, progress, success, error) {
         this.split();
@@ -278,7 +276,6 @@
             }
         });
     };
-
     block.prototype.send = function (beforeSend, progress, success, error) {
         var $t = this
 			, reader = new FileReader();
@@ -287,12 +284,11 @@
                 var data = new Uint8Array(ev.target.result);
                 sendBlock($t, data, beforeSend, progress, success, error);
             }
-        }
+        };
         var content = $t.blob.file.slice(this.pointer, this.pointer + this._preSize);
         $t.size = content.size;
         reader.readAsArrayBuffer(content);
     };
-
     var task = function (maxThread) {
         this.maxThread = maxThread;
         this.running = 0;
@@ -344,7 +340,6 @@
             this.addBlock(blob.blocks[idx]);
         }
     };
-
     $.widget('azure.blobuploader', {
         options: {
             url: null,
@@ -411,7 +406,7 @@
                     }
                     $t.task.run();
                 }
-            })
+            });
             if (!this.blobs.length) {
                 throw "Please select file first.";
             }
