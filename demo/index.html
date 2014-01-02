@@ -1,207 +1,385 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <html>
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link href="../lib/css/bootstrap.min.css" rel="stylesheet">
-	<script type="text/javascript" src="../lib/js/jquery-2.0.3.min.js"></script>
-	<script type="text/javascript" src="../lib/js/jquery-ui.min.js"></script>
-	<script type="text/javascript" src="../src/jquery.blobuploader.js"></script>
-	<script type="text/javascript" src="../lib/js/bootstrap.min.js"></script>
-	<script type="text/javascript">
-		$(function(){
-			$('#tbFileList').blobuploader(
-				{
-					url:'https://neeostorage.blob.core.chinacloudapi.cn/normal?sv=2013-08-15&sr=c&sig=NHh4WxBVvf1RvnQYqfCnjFTZiqjnRqnDimqiBoHDXvI%3D&st=2014-01-01T09%3A33%3A18Z&se=2014-01-09T17%3A33%3A18Z&sp=rwdl',
-					beforeSend:function(blob){
-						setProgress(blob.element,blob.loaded,blob.size);
-					},
-					progress:function(blob){
-						setProgress(blob.element,blob.loaded,blob.size);
-					},
-					success:function(blob,data,status){
-						var msg='total time:'+(blob.end-blob.start).toFixed(2)+'(ms)<br/>'
-							+'max speed:'+(blob.speed.max/1000).toFixed(2)+'(kb/s)<br/>'
-							+'min speed:'+(blob.speed.min/1000).toFixed(2)+'(kb/s)<br/>'
-							+'average speed:'+(blob.speed.average/1000).toFixed(2)+'(kb/s)';
+    <link href="../lib/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../lib/css/prettify.css" rel="stylesheet">
+    <script type="text/javascript" src="../lib/js/jquery-2.0.3.min.js"></script>
+    <script type="text/javascript" src="../lib/js/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="../src/jquery.blobuploader.js"></script>
+    <script type="text/javascript" src="../lib/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="../lib/js/prettify.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            var ju = {
+                sasUrl: $('#txtSAS'),
+                list: $('#tbFileList tbody'),
+                btnUpload: $('#btnUpload'),
+                btnClear: $('#btnClear'),
+                btnAddFile: $('#btnAddFile'),
+                btnSetProps: $('#btnSetProperties'),
+                sasSearchName: 'sas',
+                btnLink: $('#btnLink'),
+                linkPopover: $('#linkPopover'),
+                init: function () {
+                    this.root = location.href;
+                    if (this.root.indexOf('?') > 0) {
+                        this.root = this.root.substr(0, this.root.indexOf('?'));
+                        this.root = this.root.replace(/#/g, '');
+                    }
+                    this.btnClear.hide();
+                    var sas = this.queryString(this.sasSearchName);
+                    if (sas) {
+                        this.sasUrl.val(sas);
+                    }
+                    this.list.blobuploader(
+				    {
+				        url: ju.sasUrl.val(),
+				        beforeSend: function (blob) {
+				        },
+				        progress: function (blob) {
+				            ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
+				        },
+				        success: function (blob, data, status) {
+				            var msg = 'total time:' + (blob.end - blob.start).toFixed(2) + '(ms)<br/>'
+							    + 'max speed:' + (blob.speed.max / 1000).toFixed(2) + '(kb/s)<br/>'
+							    + 'min speed:' + (blob.speed.min / 1000).toFixed(2) + '(kb/s)<br/>'
+							    + 'average speed:' + (blob.speed.average / 1000).toFixed(2) + '(kb/s)';
+				            ju.status(blob.element, msg);
+				            var download = '<a target="_blank" role="button" class="btn btn-link" href="'
+                                + blob.blobUrl
+                                + '" >' + blob.name + '</a>';
+				            ju.log(blob.element.closest('tr').find('td:first'), download);
+				        },
+				        error: function (blob, xhr, desc, err) {
+				            ju.status(blob.element, 'upload ' + blob.name + ' error.', 'danger');
+				        }
+				    });
+                    this.btnClear.click(function () {
+                        ju.clear();
+                    });
+                    this.btnAddFile.find('input').on('change', function () {
+                        ju.add();
+                    });
+                    this.btnUpload.click(function () {
+                        ju.upload();
+                    });
+                    this.btnSetProps.click(function () {
+                        ju.setProperties();
+                    });
+                    this.btnLink.popover({
+                        html: true,
+                        content: this.linkPopover
+                    });
+                    this.btnLink.on('shown.bs.popover', function () {
+                        var panel = $('#linkPopover');
+                        panel.find('#txtShareUrl').val(ju.getLongUrl());
+                        panel.find('#ckShortUrl').click(function () {
+                            if ($(this).is(':checked')) {
+                                ju.generateShortUrl();
+                            } else {
+                                panel.find('#txtShareUrl').val(ju.getLongUrl());
+                            }
+                        })
+                        panel.find('.close').click(function () {
+                            ju.btnLink.popover('hide');
+                        });
+                        panel.find('.loading').hide();
+                    });
+                    this.sasUrl.on('change', function () {
+                        ju.linkPopover.find('#ckShortUrl').attr('ckecked', false);
+                        ju.linkPopover.find('.loading').hide();
+                    });
+                    var code = $('.prettyprint');
+                    code.text(code.text().replace('site-domain', location.origin));
+                },
+                setProperties: function () {
+                    var blockSize = parseInt($('#txtBlockSize').val());
+                    var maxThread = parseInt($('#txtMaxThread').val());
+                    if (isNaN(blockSize) || isNaN(maxThread)) {
+                        alert("Block Size and Max Thread can only be number.");
+                        return;
+                    }
+                    if (blockSize > 4096) {
+                        alert('The block size should be less than 4096kb');
+                        return;
+                    }
+                    if (blockSize < 1) {
+                        alert('The block size should be greater than 1kb');
+                        return;
+                    }
+                    if (maxThread < 0) {
+                        maxThread = 0;
+                    }
+                    this.list.blobuploader('option', 'maxThread', maxThread).blobuploader('option', 'blockSizeKB', blockSize);
+                },
+                progress: function (tr, loaded, total) {
+                    var percent = (loaded / total * 100).toFixed(2);
+                    var span = tr.find('td:last .percent');
+                    if (span.length == 0) {
+                        span = $('<span class="percent"/>').appendTo(tr.find('td:last').empty());
+                    }
+                    span.text(percent + '%');
+                },
+                log: function (td, message, type) {
+                    var div = td.empty();
+                    if (type) {
+                        div = $('<div class="alert alert-' + type + '"/>').appendTo(td);
+                    }
+                    div.html(message);
+                },
+                information: function (element, info, type) {
+                    var td = element.closest('tr').find('td:eq(1)');
+                    if (info) {
+                        ju.log(td, info, type);
+                    } else {
+                        return td.html();
+                    }
+                },
+                status: function (element, message, type) {
+                    var td = element.closest('tr').find('td:last');
+                    if (message) {
+                        ju.log(td, message, type);
+                    } else {
+                        return td.html();
+                    }
+                },
+                add: function () {
+                    var tr = $('<tr/>'), td = $('<td/>');
+                    var file = this.btnAddFile.find('input');
+                    this.btnAddFile.append(file.clone(true));
+                    var f = file.get(0).files[0];
+                    td.append(file)
+                        .append(f.name)
+                        .appendTo(tr);
+                    td = $('<td/>')
+                        .append(f.type, f.type ? '<br/>' : '', (f.size / 1000).toFixed(2) + 'KB')
+                        .appendTo(tr);
+                    $('<td><span class="percent"></span></td>').appendTo(tr);
+                    tr.appendTo(this.list);
+                    this.btnClear.show();
+                },
+                upload: function () {
+                    if (!this.sasUrl.val()) {
+                        alert('Please typedin the Container SAS');
+                    } else {
+                        this.list.blobuploader('option', 'url', this.sasUrl.val()).blobuploader('upload');
+                    }
+                },
+                retry: function () {
 
-						log(blob.element,msg,'success');
-					},
-					error:function(blob,xhr, desc, err){
-						log(blob.element,'upload '+blob.name+' error.','danger');
-					}
-				});
+                },
+                clear: function () {
+                    this.list.empty();
+                    this.btnClear.hide();
+                },
+                queryString: function (name, value) {
+                    if (!value) {
+                        name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+                        var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+                            results = regex.exec(location.search);
+                        return results == null ? "" : atob(decodeURIComponent(results[1].replace(/\+/g, " ")));
+                    } else {
+                        return name + '=' + encodeURIComponent(btoa(value));
+                    }
+                },
+                getLongUrl: function () {
+                    return this.root + '?' + this.queryString('sas', this.sasUrl.val());
+                },
+                generateShortUrl: function () {
+                    //AIzaSyDzeVB4WDi6azVvIu6uc8hIhWxf99dB6c8
+                    var request = gapi.client.urlshortener.url.insert({
+                        'resource': {
+                            'longUrl': this.getLongUrl()
+                        }
+                    });
+                    request.execute(function (response) {
+                        if (response.id != null) {
+                            ju.linkPopover.find('.loading').hide();
+                            ju.linkPopover.find('#txtShareUrl').val(response.id);
+                        }
+                        else {
+                            ju.linkPopover.find('.loading').text('error.');
+                        }
+                    });
+                }
+            }
+            ju.init();
+            window.ju = ju;
+            prettyPrint();
+        })
+        function gapiload() {
+            gapi.client.setApiKey('AIzaSyDzeVB4WDi6azVvIu6uc8hIhWxf99dB6c8');
+            gapi.client.load('urlshortener', 'v1', function () { });
+        }
+    </script>
+    <style type="text/css">
+        .jumbotron {
+            padding-top: 10px;
+            text-align: center;
+            padding-bottom: 10px;
+        }
 
-			function setProgress(element,loaded,total){
-				if(!total){
-					total=100;
-				}
-				var percent=(loaded/total*100).toFixed(2);
-				var tr=element.closest('tr');
-				var span=tr.find('td:last .percent');
-				if(span.length==0){
-					span=$('<span class="percent"/>').appendTo(tr.find('td:last').empty());
-				}
-				span.text(percent+'%');
-			}
+            .jumbotron h2 {
+                font-size: 35px;
+            }
 
-			function addFile(){
-				var tr=$('<tr/>'),td=$('<td/>');
-				var file=$('#btnAddFile').find('input');
-				$('#btnAddFile').append(file.clone(true));
-				var f=file.get(0).files[0];
-				td.append(file)
-					.append(f.name)
-					.appendTo(tr);
-				td=$('<td/>')
-					.append(f.type,"<br/>",(f.size/1000).toFixed(2)+'KB')
-					.appendTo(tr);
-				$('<td><span class="percent"></span></td>').appendTo(tr);
-				tr.appendTo($('#tbFileList').find('tbody'));
-				var copy=$('.form-group:first').clone();
-				$('#placeholder').append(copy);
-			}
+        #btnAddFile {
+            position: relative;
+        }
 
-			function log(element,message,type){
-				if(!type){
-					type='info';
-				}
-				var td=element.closest('tr').find('td:last')
-					.html(message);
-			}
+            #btnAddFile input {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background: transparent;
+                float: left;
+                opacity: 0;
+                filter: alpha(opacity=0);
+                -ms-filter: "alpha(opacity=0)";
+                -khtml-opacity: 0;
+                -moz-opacity: 0;
+            }
 
-			$('#btnAddFile input').on('change',addFile);
-			$('#btnUpload').click(function(){
-				$('#tbFileList').blobuploader('upload');
-			})
-			$('#btnSetProperties').click(function(){
-				var blockSize=parseInt($('txtBlockSize').val());
-				var maxThread=parseInt($('txtMaxThread').val());
-				if(blockSize>4096){
-					alert('The block size should be less than 4096kb');
-					return;
-				}
-				if(blockSize<1){
-					alert('The block size should be greater than 1kb');
-					return;
-				}
-				if(maxThread<0){
-					maxThread=0;
-				}
-				$('#tbFileList').blobuploader('option','maxThread',maxThread).blobuploader('option','blockSize',blockSize);
-			})
-		})
-	</script>
-	<style type="text/css">
-	.jumbotron{
-		padding-top:10px;
-		text-align: center;
-		padding-bottom:10px;
-	}
-	.jumbotron h2{
-		font-size:35px;
-	}
-	#btnAddFile{
-		position:relative;
-	}
-	#btnAddFile input{
-		position:absolute;
-		left:0;
-		right:0;
-		bottom:0;
-		top:0;
-		width:100%;
-		height:100%;
-		background:transparent;
-		float:left;
-		opacity:0;
-		filter:alpha(opacity=0);
-		-ms-filter:"alpha(opacity=0)";
-		-khtml-opacity:0;
-		-moz-opacity:0;
-	}
-	.table input[type="file"]{
-		display: none;
-	}
-	.table th{
-		width:30%;
-	}
-	.percent{
-		font-size: 20px;
-		font-weight: 500;
-	}
-	.input-sm{
-		max-width: 70px;
-		display:inline;
-	}
-	</style>
+        .table input[type="file"] {
+            display: none;
+        }
+
+        .table th {
+            width: 30%;
+        }
+
+        .percent {
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .input-sm {
+            max-width: 70px;
+            display: inline;
+        }
+
+        .loading {
+            background: #00ff90;
+            display: none;
+        }
+    </style>
 </head>
 <body>
-	<div class="container body-content">
-		<div class="page-header">
-			<h1>Upload Blob to Azure Storage</h1>
-			<p class="lead">A demo used to show how to upload file to azure blob by javascript.</p>
-		</div>
-
- <div class="jumbotron">
-        <h2>Container SAS</h2>
-        <p class="lead"><input type="text" value='https://neeostorage.blob.core.chinacloudapi.cn/normal?sv=2013-08-15&sr=c&sig=NHh4WxBVvf1RvnQYqfCnjFTZiqjnRqnDimqiBoHDXvI%3D&st=2014-01-01T09%3A33%3A18Z&se=2014-01-09T17%3A33%3A18Z&sp=rwdl', class="form-control"/></p>
-        <p><a id="btnAddFile" class="btn btn-lg btn-success" href="#" role="button">
-        <span>Add File</span>
-				<input type="file"/></a>
-        <button type="button" id="btnUpload" class="btn btn-lg btn-primary" role="button">Upload</button></p>
-        
-      </div>
-
-		<table id="tbFileList" class="table table-striped">
-			<thead>
-				<tr>
-					<th>File Name</th>
-					<th>Infomation</th>
-					<th>Status</th>
-				</tr>
-			</thead>
-			<tbody></tbody>
-		</table>
-		<div class="row">
-        <div class="col-lg-4">
-          <h2>SAS</h2>
-          <p>A shared access signature is a URI that grants restricted access rights to containers, blobs, queues, and tables for a specific time interval. By providing a client with a shared access signature, you can enable them to access resources in your storage account without sharing your account key with them. Supported operations using shared access signatures include.</p>
-          <p><a class="btn btn-primary" href="http://www.windowsazure.com/en-us/manage/services/storage/net/shared-access-signature-part-1/" target="_blank" role="button">Learn more &raquo;</a></p>
+    <div class="container body-content">
+        <div class="page-header">
+            <h1>Upload Blob to Azure Storage</h1>
+            <p class="lead">A demo used to show how to upload file to azure blob by javascript.</p>
         </div>
-        <div class="col-lg-4">
-          <h2>Generate SAS</h2>
-          <p>Azure SDK provide the function to generate SAS url on container level(blob container, table,queue) or blob. You can learn how to generate a SAS url for a container or blob by reference this link. Or you can just click next button to get the sample codesnap. </p>
-          <p><a class="btn btn-primary" href="#" data-toggle="modal" data-target="#modalCode" role="button">View code &raquo;</a></p>
-       </div>
-        <div class="col-lg-4">
-          <h2>About</h2>
-          <p>This page just show you how to upload a file to azure storage by javascript. you file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="20"/> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="2048"/> kb. You can just ajust the value in the box make it take into effect by click the following button.</p>
-          <p><a class="btn btn-primary" id="btnSetProperties" href="#" role="button">Set Properties &raquo;</a></p>
+        <div class="jumbotron">
+            <h2>Container SAS</h2>
+            <p class="lead">
+                <div class="input-group input-group-lg">
+                    <input id="txtSAS" type="text" placeholder="Input Your Container SAS Here" class="form-control" />
+                    <span id="btnLink" class="input-group-addon btn btn-default" data-container="body" data-toggle="popover" data-placement="bottom" data-original-title="" title="">Link</span>
+                </div>
+            </p>
+            <p>
+                <a id="btnAddFile" class="btn btn-lg btn-success" href="#" role="button">
+                    <span>Add File</span>
+                    <input type="file" />
+                </a>
+                <button type="button" id="btnUpload" class="btn btn-lg btn-primary" role="button">Upload</button>
+            </p>
         </div>
-      </div>
-<div class="modal fade" id="modalCode" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-        <h4 class="modal-title" id="myModalLabel">Generate Container SAS</h4>
-      </div>
-      <div class="modal-body">
-        CODE IS COMMING...
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-      </div>
-    </div><!-- /.modal-content -->
-  </div><!-- /.modal-dialog -->
-</div><!-- /.modal -->
-      <!-- Site footer -->
-      <div class="footer">
-        <p>All right reserved &copy; Orcame 2013</p>
-      </div>
-	</div>
-
+        <table id="tbFileList" class="table table-striped">
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Infomation</th>
+                    <th>
+                        Status
+                        <a href="#" id="btnClear" class="pull-right">Clear</a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div class="row">
+            <div class="col-lg-4">
+                <h2>SAS</h2>
+                <p>A shared access signature is a URI that grants restricted access rights to containers, blobs, queues, and tables for a specific time interval. By providing a client with a shared access signature, you can enable them to access resources in your storage account without sharing your account key with them. Supported operations using shared access signatures include.</p>
+                <p><a class="btn btn-primary" href="http://www.windowsazure.com/en-us/manage/services/storage/net/shared-access-signature-part-1/" target="_blank" role="button">Learn more &raquo;</a></p>
+            </div>
+            <div class="col-lg-4">
+                <h2>CORS</h2>
+                <p>
+                    Cross Origin Resource Sharing,Windows Azure Blobs, Tables and Queues now support CORS to enable users to access/manipulate resources from within the browser serving a web page in a different domain than the resource being accessed. CORS is an opt-in model which users can turn on using Set/Get Service Properties. Windows Azure Storage supports both CORS preflight OPTIONS request and actual CORS requests. Click the link
+                    <a role="button" target="_blank" class="btn btn-link" href="http://msdn.microsoft.com/en-us/library/windowsazure/dn535601.aspx">Learn more</a>or view <a class="btn btn-primary" href="#" data-toggle="modal" data-target="#modalCode" role="button">Sample code &raquo;</a>
+                </p>
+            </div>
+            <div class="col-lg-4">
+                <h2>About</h2>
+                <p>This page just show you how to upload a file to azure storage by javascript. you file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="20" /> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="2048" /> kb. You can just ajust the value in the box make it take into effect by click the following button.</p>
+                <p><a class="btn btn-primary" id="btnSetProperties" href="#" role="button">Set Properties &raquo;</a></p>
+            </div>
+        </div>
+        <div class="modal fade" id="modalCode" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                        <h4 class="modal-title" id="myModalLabel">Generate Container SAS</h4>
+                    </div>
+                    <div class="modal-body">
+                        <pre class="prettyprint">
+public void SetCors()
+{
+    CloudStorageAccount account = CloudStorageAccount.Parse(connectionString);
+    CloudBlobClient client = account.CreateCloudBlobClient();
+    ServiceProperties propers = client.GetServiceProperties();
+    CorsRule cr = new CorsRule();
+    cr.AllowedMethods = CorsHttpMethods.Put | CorsHttpMethods.Options | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Get;
+    cr.AllowedOrigins.Add("site-domain");
+    cr.AllowedHeaders.Add("*");
+    cr.MaxAgeInSeconds = 200;
+    propers.Cors = new CorsProperties();
+    propers.Cors.CorsRules.Add(cr);
+    client.SetServiceProperties(propers);
+}
+                        </pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    </div>
+                </div><!-- /.modal-content -->
+            </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+        <!-- Site footer -->
+        <div class="footer">
+            <p>All right reserved &copy; Orcame 2013</p>
+        </div>
+        <div class="hidden">
+            <div id="linkPopover">
+                <div class="panel panel-info">
+                    <div class="panel-heading">
+                        <button type="button" class="close" data-dismiss="popover" aria-hidden="true">&times;</button>
+                        <h3 class="panel-title">Paste link in email or IM</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="checkbox">
+                            <label>
+                                <input id="ckShortUrl" type="checkbox" />Short URL
+                            </label>
+                            <label class="loading">loading...</label>
+                        </div>
+                        <input id="txtShareUrl" type="text" class="form-control" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="https://apis.google.com/js/client.js?onload=gapiload"></script>
 </body>
 </html>
