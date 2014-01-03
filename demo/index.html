@@ -115,6 +115,7 @@
                         maxThread = 0;
                     }
                     this.list.blobuploader('option', 'maxThread', maxThread).blobuploader('option', 'blockSizeKB', blockSize);
+                    alert("The uploader properties changed.");
                 },
                 progress: function (tr, loaded, total) {
                     var percent = (loaded / total * 100).toFixed(2);
@@ -266,8 +267,8 @@
                 </p>
             </div>
             <div class="col-lg-4">
-                <h2>About</h2>
-                <p>This page just show you how to upload a file to azure storage by javascript. you file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="20" /> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="2048" /> kb. You can just ajust the value in the box make it take into effect by click the following button.</p>
+                <h2>ABOUT</h2>
+                <p>This page just show you how to upload a file to azure storage by javascript. your file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="20" /> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="2048" /> kb. You can just ajust the value in the box make it take into effect by click the following button.</p>
                 <p><a class="btn btn-primary" id="btnSetProperties" href="#" role="button">Set Properties &raquo;</a></p>
             </div>
         </div>
