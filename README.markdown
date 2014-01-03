@@ -9,17 +9,15 @@ To use this plugin, you need:
 
 Quick view from [demo site](http://www.orcame.com/jquery-blobuploader)
 
-```js use jquery-blobuploader 
 
-$('div').blobuploader({
-	url:'your container sas url',
-	maxThread:20,//the max thread, by default is 20
-	blockSizeKB:2048//the block size, default is 2048, should be less than 4096
-});
+	$('div').blobuploader({
+		url:'your container sas url',
+		maxThread:20,//the max thread, by default is 20
+		blockSizeKB:2048//the block size, default is 2048, should be less than 4096
+	});
 
-$('div').blobuploader('upload');//will upload all <input type='file'/> node's target file to your container
+	$('div').blobuploader('upload');//will upload all <input type='file'/> node's target file to your container
 
-```
 
 Options:
 
@@ -32,6 +30,7 @@ maxThread|20|the max ajax request at the same time.
 
 
 Functions:
+
 Name|Parameters|Description
 ---|---|---
 upload|N/A|upload all <input type='file'/> node's target file
