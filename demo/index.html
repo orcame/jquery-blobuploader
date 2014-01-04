@@ -20,7 +20,6 @@
                 btnUpload: $('#btnUpload'),
                 btnClear: $('#btnClear'),
                 btnAddFile: $('#btnAddFile'),
-                btnSetProps: $('#btnSetProperties'),
                 sasSearchName: 'sas',
                 btnLink: $('#btnLink'),
                 linkPopover: $('#linkPopover'),
@@ -44,18 +43,27 @@
                             ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
                         },
                         success: function (blob, data, status) {
-                            var msg = 'total time:' + (blob.end - blob.start).toFixed(2) + '(ms)<br/>'
-                                + 'max speed:' + (blob.speed.max / 1000).toFixed(2) + '(kb/s)<br/>'
-                                + 'min speed:' + (blob.speed.min / 1000).toFixed(2) + '(kb/s)<br/>'
-                                + 'average speed:' + (blob.speed.average / 1000).toFixed(2) + '(kb/s)';
+                            var st = blob.statistics;
+                            var msg = 'total time:' + ((st.endTime - st.startTime) / 1000).toFixed(2) + '(s)<br/>'
+                                + 'max speed:' + (st.maxSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
+                                + 'min speed:' + (st.minSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
+                                + 'average speed:' + (st.averageSpeed / 1000).toFixed(2) + '(kb/s)';
                             ju.status(blob.element, msg);
                             var download = '<a target="_blank" role="button" class="btn btn-link" href="'
                                 + blob.blobUrl
                                 + '" >' + blob.name + '</a>';
                             ju.log(blob.element.closest('tr').find('td:first'), download);
                         },
-                        error: function (blob, xhr, desc, err) {
-                            ju.status(blob.element, 'upload ' + blob.name + ' error.', 'danger');
+                        error: function (blob, block, xhr, desc, err) {
+                            console.log('fuck you.');
+                            var msg = $('<span></span>');
+                            msg.append('upload ' + blob.name + ' error.');
+                            var btn = $('<button type="button" id="btnUpload" class="btn btn-sm btn-primary pull-right" role="button">Retry</button>');
+                            btn.click(function () {
+                                ju.retry($(this).closest('tr'));
+                            });
+                            msg.append(btn)
+                            ju.status(blob.element, msg, 'danger');
                         }
                     });
                     this.btnClear.click(function () {
@@ -67,12 +75,10 @@
                     this.btnUpload.click(function () {
                         ju.upload();
                     });
-                    this.btnSetProps.click(function () {
-                        ju.setProperties();
-                    });
                     this.btnLink.popover({
                         html: true,
-                        content: this.linkPopover
+                        content: this.linkPopover,
+                        container: 'body'
                     });
                     this.btnLink.on('shown.bs.popover', function () {
                         var panel = $('#linkPopover');
@@ -85,8 +91,9 @@
                             }
                         })
                         panel.find('.close').click(function () {
-                            ju.btnLink.popover('hide');
+                            ju.btnLink.popover('toggle');
                         });
+                        panel.find('#ckShortUrl').attr('checked', false);
                         panel.find('.loading').hide();
                     });
                     this.sasUrl.on('change', function () {
@@ -95,27 +102,6 @@
                     });
                     var code = $('.prettyprint');
                     code.text(code.text().replace('site-domain', location.origin));
-                },
-                setProperties: function () {
-                    var blockSize = parseInt($('#txtBlockSize').val());
-                    var maxThread = parseInt($('#txtMaxThread').val());
-                    if (isNaN(blockSize) || isNaN(maxThread)) {
-                        alert("Block Size and Max Thread can only be number.");
-                        return;
-                    }
-                    if (blockSize > 4096) {
-                        alert('The block size should be less than 4096kb');
-                        return;
-                    }
-                    if (blockSize < 1) {
-                        alert('The block size should be greater than 1kb');
-                        return;
-                    }
-                    if (maxThread < 0) {
-                        maxThread = 0;
-                    }
-                    this.list.blobuploader('option', 'maxThread', maxThread).blobuploader('option', 'blockSizeKB', blockSize);
-                    alert("The uploader properties changed.");
                 },
                 progress: function (tr, loaded, total) {
                     var percent = (loaded / total * 100).toFixed(2);
@@ -130,7 +116,11 @@
                     if (type) {
                         div = $('<div class="alert alert-' + type + '"/>').appendTo(td);
                     }
-                    div.html(message);
+                    if (message instanceof jQuery) {
+                        div.append(message);
+                    } else {
+                        div.html(message);
+                    }
                 },
                 information: function (element, info, type) {
                     var td = element.closest('tr').find('td:eq(1)');
@@ -163,15 +153,46 @@
                     tr.appendTo(this.list);
                     this.btnClear.show();
                 },
-                upload: function () {
+                setProperties: function () {
                     if (!this.sasUrl.val()) {
                         alert('Please typedin the Container SAS');
-                    } else {
-                        this.list.blobuploader('option', 'url', this.sasUrl.val()).blobuploader('upload');
+                        return;
+                    }
+                    var blockSize = parseInt($('#txtBlockSize').val());
+                    var maxThread = parseInt($('#txtMaxThread').val());
+                    if (isNaN(blockSize) || isNaN(maxThread)) {
+                        alert("Block Size and Max Thread can only be number.");
+                        return;
+                    }
+                    if (blockSize > 4096) {
+                        alert('The block size should be less than 4096kb');
+                        return;
+                    }
+                    if (blockSize < 1) {
+                        alert('The block size should be greater than 1kb');
+                        return;
+                    }
+                    if (maxThread < 0) {
+                        maxThread = 0;
+                    }
+                    this.list.blobuploader('option', { maxThread: maxThread, blockSizeKB: blockSize, url: this.sasUrl.val() });
+                    return true;
+                },
+                upload: function () {
+                    if (this.setProperties()) {
+                        this.list.blobuploader('upload');
                     }
                 },
-                retry: function () {
-
+                retry: function (tr) {
+                    if (this.setProperties()) {
+                        if (tr) {
+                            var element = tr.find('input[type="file"]');
+                            var blob = this.list.blobuploader('blob', element);
+                            this.list.blobuploader('retry', blob);
+                        } else {
+                            this.list.blobuploader('retry');
+                        }
+                    }
                 },
                 clear: function () {
                     this.list.empty();
@@ -191,7 +212,6 @@
                     return this.root + '?' + this.queryString('sas', this.sasUrl.val());
                 },
                 generateShortUrl: function () {
-                    //AIzaSyDzeVB4WDi6azVvIu6uc8hIhWxf99dB6c8
                     var request = gapi.client.urlshortener.url.insert({
                         'resource': {
                             'longUrl': this.getLongUrl()
@@ -209,7 +229,6 @@
                 }
             }
             ju.init();
-            window.ju = ju;
             prettyPrint();
         })
         function gapiload() {
@@ -268,8 +287,8 @@
             </div>
             <div class="col-lg-4">
                 <h2>ABOUT</h2>
-                <p>This page just show you how to upload a file to azure storage by javascript. your file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="20" /> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="2048" /> kb. You can just ajust the value in the box make it take into effect by click the following button.</p>
-                <p><a class="btn btn-primary" id="btnSetProperties" href="#" role="button">Set Properties &raquo;</a></p>
+                <p>This page just show you how to upload a file to azure storage by javascript. your file will directly upload to the azure storage service by your browser without any middle service. By default we use at most<input id="txtMaxThread" class="form-control input-sm" type="text" value="7" /> (0 means infinity) async requests to send the blob, and the size of each block(one blob split to multi bloks) is <input id="txtBlockSize" class="form-control input-sm" type="text" value="4096"> KB. You can just ajust the value in the box and will take into effect when you click the upload button.</p>
+                <p><a class="btn btn-primary" target="_blank" href="https://github.com/orcame/jquery-blobuploader" role="button">Fork on github &raquo;</a></p>
             </div>
         </div>
         <div class="modal fade" id="modalCode" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">

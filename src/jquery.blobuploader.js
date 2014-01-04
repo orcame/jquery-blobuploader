@@ -6,12 +6,159 @@
             str = '0' + str;
         }
         return str;
-    }
+    };
+
+    var calcSpeed = function (blob) {
+        var st = blob.statistics;
+        var now = new Date();
+        if (!st._markLoaded) {
+            st._markLoaded = 0;
+            st._markTime = blob.start;
+        }
+        if (now - st._markTime == 0) {
+            return;
+        }
+        var current = (blob.loaded - st._markLoaded) / ((now - st._markTime) / 1000);
+        st.maxSpeed = isNaN(st.maxSpeed) ? current : Math.max(st.maxSpeed, current);
+        st.minSpeed = isNaN(st.minSpeed) ? current : Math.min(st.minSpeed, current);
+        st.currentSpeed = current;
+        st.averageSpeed = blob.loaded / ((now - st.startTime) / 1000);
+        st._markLoaded = blob.loaded;
+        st._markTime = now;
+    };
+
     var status = {
         init: 0,
         uploading: 1,
-        success: 2,
-        error: 3
+        uncommit: 2,
+        success: 4,
+        error: 8
+    };
+
+    var blockCollection = function () {
+        this.list = {};
+        this.length = 0;
+    };
+
+    blockCollection.prototype.push = function (block) {
+        if (!this.list[block.id]) {
+            this.length++;
+        }
+        this.list[block.id] = block;
+    };
+
+    blockCollection.prototype.shift = function () {
+        if (this.length == 0) {
+            return null;
+        }
+        for (var id in this.list) {
+            var block = this.list[id];
+            if (block.times <= block.blob.retry) {
+                delete this.list[id];
+                this.length--;
+                return block;
+            }
+        }
+        return null;
+    };
+
+    blockCollection.prototype.resetTimes = function () {
+        for (var id in this.list) {
+            this.list[id].times = 0;
+        }
+    };
+
+    blockCollection.prototype.remove = function (block) {
+        if (!block) {
+            return;
+        }
+        if (this.list[block.id]) {
+            delete this.list[block.id];
+            this.length--;
+        }
+    };
+
+    blockCollection.prototype.clear = function () {
+        for (var id in this.list) {
+            delete this.list[id];
+            this.length--;
+        }
+    };
+
+    blockCollection.prototype.ids = function () {
+        var ids = [];
+        for (var id in this.list) {
+            ids.push(id);
+        }
+        return ids;
+    };
+
+    var blockInBlobBeforeSend = function (xhr) {
+        var blob = this.blob;
+        checkBlobStatus(blob);
+        blob.sendingBlocks.push(this);
+        //only the first block send trigged the blob befor send event.
+        if (blob.beforeSend && blob.status == status.init) {
+            blob.statistics.startTime = new Date();
+            blob.beforeSend.call(blob, this, xhr);
+        }
+    };
+
+    var blockInBlobPorgress = function (ev) {
+        var blob = this.blob;
+        blob.loaded -= this.loaded;
+        blob.loaded += ev.loaded;
+        calcSpeed(blob);
+        if (blob.progress) {
+            blob.progress.apply(blob, arguments);
+        }
+    };
+
+    var blockInBlobSuccess = function () {
+        var blob = this.blob;
+        blob.sendingBlocks.remove(this);
+        blob.successBlocks.push(this);
+        checkBlobStatus(blob);
+        //all block upload success, execute the blob commit function.
+        if (blob.status == status.uncommit) {
+            blob.statistics.endTime = new Date();
+            delete blob.statistics["_markLoaded"];
+            delete blob.statistics["_markTime"];
+            blob.commit();
+        }
+    };
+
+    var blockInBlobError = function (xhr, desc, err) {
+        var blob = this.blob;
+        blob.sendingBlocks.remove(this);
+        blob.errorBlocks.push(this);
+        checkBlobStatus(blob);
+        if (blob.error) {// && blob.status != status.uploading) {
+            blob.error.call(blob, this, xhr, desc, err);
+        }
+    };
+
+    var checkBlobStatus = function (blob) {
+        if (blob.status == status.success || blob.status == status.uncommit) {
+            return;
+        }
+        if (blob.sendingBlocks.length > 0) {
+            blob.status = status.uploading;
+        }
+        else if (blob.errorBlocks.length > 0) {
+            blob.status = status.error;
+        }
+        else if (blob.noMoreBlock()) {
+            if (blob.successBlocks.length == blob.blocks.length) {
+                blob.status = status.uncommit;
+            }
+        } else {
+            if (blob.successBlocks.length > 0) {
+                blob.status = status.uploading;
+            } else {
+                blob.status = status.init;
+            }
+        }
     };
 
     var blob = function (element, container, blockSize) {
@@ -24,156 +171,71 @@
         this.name = file.name;
         this.blobUrl = container.substring(0, qidx) + '/' + file.name;
         this.url = this.blobUrl + container.substring(qidx);
-
         this.blockSize = blockSize;
-        this.blocks = [];
+        this.blocks = new blockCollection();
+        this.errorBlocks = new blockCollection();
+        this.sendingBlocks = new blockCollection();
+        this.successBlocks = new blockCollection();
+        this.init();
     };
     blob.prototype.init = function () {
+        this.pointer = 0;
         this.loaded = 0;
-        this.speed = { max: 0, min: Infinity };
-        this.start = new Date();
-        this.end = null;
+        this.statistics = {};
+        this.status = status.init;
+        this.blocks.clear();
+        this.sendingBlocks.clear();
+        this.errorBlocks.clear();
+        this.successBlocks.clear();
     };
-    var calcSpeed = function (blob) {
-        var now = new Date();
-        if (!blob._markLoaded) {
-            blob._markLoaded = 0;
-            blob._markTime = blob.start;
-        }
-        if (now - blob._markTime == 0) {
-            return;
-        }
-        var speed = blob.speed;
-        var current = (blob.loaded - blob._markLoaded) / ((now - blob._markTime) / 1000);
-        speed.max = Math.max(speed.max, current);
-        speed.min = Math.min(speed.min, current);
-        speed.current = current;
-        speed.average = blob.loaded / ((now - blob.start) / 1000);
-        blob._markLoaded = blob.loaded;
-        blob._markTime = now;
-    };
-    blob.prototype.split = function () {
-        var $t = this;
-        var blockSuccess = function () {
-            if ($t.allBlockUploadSuccess()) {
-                $t.commit();
-            }
-        };
-        var blockError = function (xhr, desc, err) {
-            if ($t.error) {
-                if (!$t.hasUploadingBlocks()) {
-                    $t.error.call($t, xhr, "Blob upload error,call blob.errorBlocks() check the detail.", err);
-                }
-            }
-        };
-        var blockProgress = function (ev) {
-            if ($t.progress) {
-                $t.loaded = 0;
-                for (var i = $t.blocks.length - 1; i >= 0; i--) {
-                    $t.loaded += $t.blocks[i].loaded | 0;
-                };
-                calcSpeed($t);
-                $t.progress.apply($t, arguments);
-            };
-        };
-        var blockBeforeSend = function (xhr) {
-            $t.init();
-            if ($t.beforeSend) {
-                $t.beforeSend.call($t, this, xhr);
-            }
-        };
-        var csize = 0, idx = 0;
-        while (csize < this.size) {
-            var _block = new block(this, csize, this.blockSize);
-            _block.index = idx;
-            _block.beforeSend = blockBeforeSend;
-            _block.progress = blockProgress;
-            _block.success = blockSuccess;
-            _block.error = blockError;
-            idx++;
-            csize += this.blockSize;
-        }
+    blob.prototype.noMoreBlock = function () {
+        return this.pointer >= this.size;
     };
 
-    blob.prototype.findBlocksByStatus = function (status) {
-        var result = [];
-        var len = this.blocks.length;
-        for (var i = 0; i < len; i++) {
-            if (this.blocks[i].status == status) {
-                result.push(this.blocks[i]);
+    blob.prototype.nextBlock = function () {
+        if (!this.noMoreBlock()) {
+            var _block = new block(this, this.pointer, this.blockSize);
+            this.blocks.push(_block);
+            _block.beforeSend = blockInBlobBeforeSend;
+            _block.progress = blockInBlobPorgress;
+            _block.success = blockInBlobSuccess;
+            _block.error = blockInBlobError;
+            this.pointer += _block.size;
+            return _block;
+        }
+        return this.errorBlocks.shift();
+    };
+    blob.prototype.send = function () {
+        function end() {
+            var block = this.blob.nextBlock();
+            if (block) {
+                block.send(end);
             }
         }
-        return result;
-    };
-    blob.prototype.uploadingBlocks = function () {
-        return this.findBlocksByStatus(status.uploading);
-    };
-    blob.prototype.errorBlocks = function () {
-        return this.findBlocksByStatus(status.error);
-    };
-    blob.prototype.successBlocks = function () {
-        return this.findBlocksByStatus(status.success);
-    };
-    blob.prototype.hasUploadErrorBlocks = function () {
-        return this.errorBlocks().length > 0;
-    };
-    blob.prototype.allBlockUploadSuccess = function () {
-        return this.successBlocks().length == this.blocks.length;
-    };
-    blob.prototype.hasUploadingBlocks = function () {
-        return this.uploadingBlocks().length > 0;
-    };
-    var sendBlobBlocks = function (blob, blocks, beforeSend, progress, success, error) {
-        blocks = blocks || blob.blocks;
-        var _beforeSend = null, _success = null, _error = null;
-        if (beforeSend) {
-            _beforeSend = function () {
-                if (this.blob.status == status.init) {
-                    beforeSend.apply(this.blob, arguments);
-                }
+        var threads = this.maxThread > 0 ? this.maxThread : -1;
+        while (threads > 0 || threads == -1) {
+            var block = this.nextBlock();
+            if (!block) {
+                break;
+            }
+            block.send(end);
+            if (threads > 0) {
+                threads--;
             }
         }
-        if (success) {
-            _success = function () {
-                if (this.blob.status == status.success) {
-                    success.apply(this.blob, arguments);
-                }
-            }
-        }
-        if (error) {
-            _error = function () {
-                if (this.blob.status == status.error) {
-                    error.apply(this.blob, arguments);
-                }
-            }
-        }
-        var len = blocks.length;
-        for (var i = 0; i < len ; i++) {
-            var block = blocks[i];
-            block.send(_beforeSend, progress, _success, _error);
-        }
     };
-    blob.prototype.send = function (beforeSend, progress, success, error) {
-        this.split();
-        sendBlobBlocks(this, null, beforeSend, progress, success, error);
+    blob.prototype.resend = function () {
+        this.errorBlocks.resetTimes();
+        this.send();
     };
-    blob.prototype.retry = function (beforeSend, progress, success, error) {
-        var blocks = blob.errorBlocks();
-        sendBlobBlocks(this, blocks, beforeSend, progress, success, error);
-    };
-    blob.prototype.commit = function (success, error) {
-        if (this.committing) {
-            return;
-        }
-        this.committing = true;
-        var _success = mergeFunction(this.success, success);
-        var _error = mergeFunction(this.error, error);
+    blob.prototype.commit = function () {
         var uri = this.url + '&comp=blocklist'
-			, data = []
-			, len = this.blocks.length;
+            , data = []
+            , ids = this.blocks.ids()
+            , len = ids.length;
         data.push('<?xml version="1.0" encoding="utf-8"?><BlockList>');
         for (var i = 0; i < len; i++) {
-            data.push('<Latest>' + this.blocks[i].id + '</Latest>');
+            data.push('<Latest>' + ids[i] + '</Latest>');
         }
         data.push('</BlockList>');
         var $t = this;
@@ -186,166 +248,154 @@
             },
             success: function (data, sta) {
                 $t.status = status.success;
-                $t.end = new Date();
-                $t.committing = false;
-                if (_success) {
-                    _success.call($t, data, sta);
+                $t.statistics.endTime = new Date();
+                if ($t.success) {
+                    $t.success(data, sta);
                 }
             },
             error: function (xhr, desc, err) {
                 $t.status = status.error;
                 $t.desc = desc;
                 $t.err = err;
-                $t.end = new Date();
-                $t.committing = false;
-                if (_error) {
-                    _error.call($t, xhr, desc, err);
+                $t.statistics.endTime = new Date();
+                if ($t.error) {
+                    $t.error(null, xhr, desc, err);
                 }
             }
         });
     };
     var block = function (blob, pointer, size) {
-        blob.blocks.push(this);
         this.blob = blob;
+        this.content = blob.file.slice(pointer, pointer + size);
+        this.size = this.content.size;
         this.pointer = pointer;
-        this._preSize = size;
         this.status = status.init;
         this.id = btoa("block-" + pad(blob.blocks.length, 6)).replace(/=/g, 'a');
+        this.url = blob.url + '&comp=block&blockid=' + this.id;
+        this.loaded = 0;
+        this.times = 0;
     };
-    var mergeFunction = function (func1, func2) {
-        var args = arguments;
-        return function () {
-            for (var i = args.length - 1; i >= 0; i--) {
-                if (typeof (args[i]) == 'function') {
-                    args[i].apply(this, arguments);
-                }
-            };
-        }
-    };
-    var sendBlock = function (block, data, beforeSend, progress, success, error) {
-        beforeSend = mergeFunction(block.beforeSend, beforeSend);
-        progress = mergeFunction(block.progress, progress);
-        success = mergeFunction(block.success, success);
-        error = mergeFunction(block.error, error);
-        var uri = block.blob.url + '&comp=block&blockid=' + block.id;
+    var sendBlock = function (block, data, end) {
         $.ajax({
-            url: uri,
+            url: block.url,
             type: "PUT",
             data: data,
             processData: false,
-            xhr: function () {  // Custom XMLHttpRequest
-                var myXhr = $.ajaxSettings.xhr();
-                if (myXhr.upload) { // Check if upload property exists
-                    myXhr.upload.addEventListener('progress', function (ev) {
+            xhr: function () {
+                var _xhr = $.ajaxSettings.xhr();
+                if (_xhr.upload) {
+                    _xhr.upload.addEventListener('progress', function (ev) {
                         if (ev.lengthComputable) {
-                            block.loaded = ev.loaded;
-                            block.total = ev.total;
-                            if (progress) {
-                                progress.call(block, ev)
+                            if (block.progress) {
+                                block.progress(ev);
                             }
+                            block.loaded = ev.loaded;
                         }
-                    }, false); // For handling the progress of the upload
+                    }, false);
                 }
-                return myXhr;
+                return _xhr;
             },
             beforeSend: function (xhr) {
                 xhr.setRequestHeader('x-ms-blob-type', 'BlockBlob');
-                //xhr.setRequestHeader('Content-Length', block.size);
-
-                if (beforeSend) {
-                    beforeSend.call(block, xhr);
+                if (block.beforeSend) {
+                    block.beforeSend(xhr);
                 }
+                block.times += 1;
                 block.status = status.uploading;
             },
             success: function (data, sta) {
                 block.status = status.success;
                 block.desc = null;
                 block.err = null;
-                if (success) {
-                    success.call(block, data, status);
+                if (block.success) {
+                    block.success(data, status);
+                }
+                if (end) {
+                    end(block);
                 }
             },
             error: function (xhr, desc, err) {
                 block.status = status.error;
                 block.desc = desc;
                 block.err = err;
-                if (error) {
-                    error.call(block, xhr, desc, err);
+                if (block.error) {
+                    block.error(xhr, desc, err);
                 }
-                console.log(desc, err);
+                if (end) {
+                    end(block);
+                }
             }
         });
     };
-    block.prototype.send = function (beforeSend, progress, success, error) {
+    block.prototype.send = function (end) {
         var $t = this
-			, reader = new FileReader();
+            , reader = new FileReader();
         reader.onloadend = function (ev) {
             if (ev.target.readyState == FileReader.DONE) {
                 var data = new Uint8Array(ev.target.result);
-                sendBlock($t, data, beforeSend, progress, success, error);
+                sendBlock($t, data, end);
             }
         };
-        var content = $t.blob.file.slice(this.pointer, this.pointer + this._preSize);
-        $t.size = content.size;
-        reader.readAsArrayBuffer(content);
+        reader.readAsArrayBuffer(this.content);
     };
+
     var task = function (maxThread) {
         this.maxThread = maxThread;
         this.running = 0;
         this.blobs = [];
-        this.blocks = [];
     };
-    task.prototype.addBlock = function (block) {
-        this.blocks.push(block);
-    };
-    task.prototype.run = function () {
-        var $t = this, onEnd = function () {
-            $t.running--;
-            var _block = $t.blocks.shift();
-            if (_block) {
-                _block.send(null, null, onEnd, onEnd);
-            }
-        };
-        while ($t.maxThread > 0 && $t.running < $t.maxThread) {
-            var block = $t.blocks.shift();
+
+    task.prototype.nextBlock = function () {
+        var len = this.blobs.length;
+        for (var idx = 0; idx < len; idx++) {
+            var block = this.blobs[idx].nextBlock();
             if (block) {
-                block.send(null, null, onEnd, onEnd);
-            } else {
+                return block;
+            }
+        }
+        return null;
+    };
+
+    task.prototype.send = function (blob) {
+        var threads = this.maxThread > 0 ? this.maxThread : -1;
+        var $t = blob || this;
+        function end() {
+            var block = $t.nextBlock();
+            if (block) {
+                block.send(end);
+            }
+        }
+        while (threads > 0 || threads == -1) {
+            var block = $t.nextBlock();
+            if (!block) {
                 break;
             }
-        }
-    };
-    task.prototype.retryBlob = function (blob) {
-        if (!blob) {
-            return;
-        }
-        for (var i = blob.blocks.length - 1; i >= 0; i--) {
-            var block = blob.blocks[i];
-            if (block.status == status.error) {
-                this.blocks.push(block);
+            block.send(end);
+            if (threads > 0) {
+                threads--;
             }
-        };
-        this.run();
-    };
-    task.prototype.retry = function () {
-        for (var i = this.blobs.length - 1; i >= 0; i--) {
-            this.retryBlob(this.blobs[i]);
-        };
-    };
-    task.prototype.addBlob = function (blob) {
-        blob.split();
-        this.blobs.push(blob);
-        var len = blob.blocks.length;
-        for (var idx = 0; idx < len; idx++) {
-            this.addBlock(blob.blocks[idx]);
         }
+    };
+
+    task.prototype.reset = function (blob) {
+        if (blob) {
+            blob.init();
+        } else {
+            for (var idx = 0; idx < len; idx++) {
+                this.blobs[idx].init();
+            }
+        }
+    };
+
+    task.prototype.addBlob = function (blob) {
+        this.blobs.push(blob);
     };
     $.widget('azure.blobuploader', {
         options: {
             url: null,
-            blockSizeKB: 2048,
-            skipSuccessFile: true,
-            maxThread: 20,
+            blockSizeKB: 4096,
+            maxThread: 7,
+            retry: 1,
             beforeSend: null,//function(blob)
             error: null,	//function(blob,xhr, desc, err)
             progress: null,//function(blob)
@@ -353,7 +403,23 @@
         },
         _create: function () {
             this.task = new task();
-            this.blobs = [];
+        },
+        blobs: function () {
+            return this.task.blobs;
+        },
+        blob: function (element) {
+            if (typeof (element) == 'string') {
+                element = $('element').get(0);
+            } else if (element instanceof jQuery) {
+                element = element.get(0);
+            }
+            var blobs = this.blobs();
+            for (var i = blobs.length - 1; i >= 0; i--) {
+                if (blobs[i].element.get(0) == element) {
+                    return blobs[i];
+                }
+            };
+            return null;
         },
         upload: function () {
             var $t = this, options = this.options;
@@ -372,14 +438,11 @@
                     options.success.call($t, this, data, status);
                 }
             };
-            var blobError = function (xhr, desc, err) {
+            var blobError = function (block, xhr, desc, err) {
                 if (options.error) {
-                    options.error.call($t, this, xhr, desc, err);
+                    options.error.call($t, this, block, xhr, desc, err);
                 }
             };
-            if (!options.skipSuccessFile) {
-                this.blobs.length = 0;
-            }
             this.element.find('input[type="file"]').each(function () {
                 $t.task.maxThread = options.maxThread;
                 if ($(this).val()) {
@@ -390,49 +453,30 @@
                         _blob.progress = blobProgress;
                         _blob.success = blobSuccess;
                         _blob.error = blobError;
-                        $t.blobs.push(_blob);
+                        _blob.retry = options.retry;
                         $t.task.addBlob(_blob);
-                    } else {
-                        if (options.skipSuccessFile) {
-                            if (blob.status != status.success) {
-                                var _blocks = _blob.errorBlocks();
-                                $.each(_blocks, function () {
-                                    $t.task.addBlock(this)
-                                })
-                            }
-                        } else {
-                            $t.task.addBlob(_blob);
-                        }
                     }
-                    $t.task.run();
                 }
             });
-            if (!this.blobs.length) {
+            if (!this.blobs().length) {
                 throw "Please select file first.";
-            }
-        },
-        blob: function (element) {
-            if (typeof (element) == 'string') {
-                element = $('element').get(0);
-            } else if (element instanceof jQuery) {
-                element = element.get(0);
-            }
-            for (var i = this.blobs.length - 1; i >= 0; i--) {
-                if (this.blobs[i].element.get(0) == element) {
-                    return this.blobs[i];
-                }
-            };
-            return null;
-        },
-        retry: function (element) {
-            if (!element) {
-                this.task.retry();
             } else {
-                var blob = this.blob(element);
-                if (blob) {
-                    this.task.retry(blob);
+                $t.task.send();
+            }
+        },
+        retry: function (blob) {
+            if (blob) {
+                blob.errorBlocks.resetTimes();
+            } else {
+                var len = this.task.blocks.length;
+                for (var idx = 0; idx < len; idx++) {
+                    this.task.blobs[i].errorBlocks.resetTimes();
                 }
             }
+            this.task.send(blob);
+        },
+        reset: function (blob) {
+            this.task.reset(blob);
         }
     });
 })(jQuery);
