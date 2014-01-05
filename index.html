@@ -55,7 +55,6 @@
                             ju.log(blob.element.closest('tr').find('td:first'), download);
                         },
                         error: function (blob, block, xhr, desc, err) {
-                            console.log('fuck you.');
                             var msg = $('<span></span>');
                             msg.append('upload ' + blob.name + ' error.');
                             var btn = $('<button type="button" id="btnUpload" class="btn btn-sm btn-primary pull-right" role="button">Retry</button>');
