@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JS Blob Uploader</title>
     <link href="http://netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet">
-    <link href="http://cdnjs.cloudflare.com/ajax/libs/prettify/r224/prettify.css" type="text/css">
-    <link href="css/site.css" rel="stylesheet">   
+    <link href="http://cdnjs.cloudflare.com/ajax/libs/prettify/r224/prettify.css" rel="stylesheet">
+    <link href="css/site.css" rel="stylesheet">
     <script src="http://cdnjs.cloudflare.com/ajax/libs/prettify/r224/prettify.js" type="text/javascript"></script>
     <script src="http://code.jquery.com/jquery-2.0.3.min.js"></script>
     <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.min.js"></script>
@@ -43,11 +43,11 @@
                             ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
                         },
                         success: function (blob, data, status) {
-                            var st = blob.statistics;
-                            var msg = 'total time:' + ((st.endTime - st.startTime) / 1000).toFixed(2) + '(s)<br/>'
-                                + 'max speed:' + (st.maxSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
-                                + 'min speed:' + (st.minSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
-                                + 'average speed:' + (st.averageSpeed / 1000).toFixed(2) + '(kb/s)';
+                            var st = blob.speed(true);
+                            var msg = 'total time: ' + ((st.end - st.start) / 1000).toFixed(2) + 'S<br/>'
+                                + 'max speed: ' + st.max + '<br/>'
+                                + 'min speed: ' + st.min + '<br/>'
+                                + 'average speed: ' + st.average;
                             ju.status(blob.element, msg);
                             var download = '<a target="_blank" role="button" class="btn btn-link" href="'
                                 + blob.blobUrl
