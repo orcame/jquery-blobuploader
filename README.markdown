@@ -26,7 +26,7 @@ Name|Default|Description
 url|null|your container sas url
 blockSizeKB|4096|the max block size used to split a blobsuccessfully.
 maxThread|7|the max ajax request at the same time. Default is 7 no why, I love the number.
-retry|1|the times of automatic retry upload the failed block.(means upload retry+1 times)
+breakWhekError|true|break the blob upload job while error occured.(only for on blob)
 
 
 Functions:

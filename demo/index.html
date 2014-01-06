@@ -43,11 +43,11 @@
                             ju.progress(blob.element.closest('tr'), blob.loaded, blob.size);
                         },
                         success: function (blob, data, status) {
-                            var st = blob.statistics;
-                            var msg = 'total time:' + ((st.endTime - st.startTime) / 1000).toFixed(2) + '(s)<br/>'
-                                + 'max speed:' + (st.maxSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
-                                + 'min speed:' + (st.minSpeed / 1024).toFixed(2) + '(kb/s)<br/>'
-                                + 'average speed:' + (st.averageSpeed / 1000).toFixed(2) + '(kb/s)';
+                            var st = blob.speed(true);
+                            var msg = 'total time: ' + ((st.end - st.start) / 1000).toFixed(2) + 'S<br/>'
+                                + 'max speed: ' + st.max + '<br/>'
+                                + 'min speed: ' + st.min + '<br/>'
+                                + 'average speed: ' + st.average;
                             ju.status(blob.element, msg);
                             var download = '<a target="_blank" role="button" class="btn btn-link" href="'
                                 + blob.blobUrl
@@ -55,7 +55,6 @@
                             ju.log(blob.element.closest('tr').find('td:first'), download);
                         },
                         error: function (blob, block, xhr, desc, err) {
-                            console.log('fuck you.');
                             var msg = $('<span></span>');
                             msg.append('upload ' + blob.name + ' error.');
                             var btn = $('<button type="button" id="btnUpload" class="btn btn-sm btn-primary pull-right" role="button">Retry</button>');
