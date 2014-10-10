@@ -207,11 +207,13 @@
             var start = this.start, end = this.end || now();
             for (var idx = 0; idx < len; idx++) {
                 var sp = this.blocks[idx].speed();
+                if(sp !== null){
                 max = max == null ? sp.max : Math.max(sp.max, max);
                 min = min == null ? sp.min : Math.min(sp.min, min);
                 start = start == null ? sp.start : Math.min(sp.start, start);
                 end = end == null ? sp.end : Math.max(sp.end, end);
                 loaded += sp.loaded;
+                }
             }
             average = loaded / (end - start) * 1000;
             var result = { start: start, end: end, loaded: loaded, min: min, max: max, average: average };
@@ -417,7 +419,7 @@
         if (blob) {
             blob.init();
         } else {
-            for (var idx = 0; idx < len; idx++) {
+            for (var idx = 0; idx < this.blobs.length; idx++) {
                 this.blobs[idx].init();
             }
         }
@@ -437,7 +439,7 @@
             success: null //function(blob,data,status)
         },
         _create: function () {
-            this.task = new task();
+            this.task = new task(this.options.maxThread);
         },
         blobs: function () {
             return this.task.blobs;
@@ -505,7 +507,7 @@
             } else {
                 var len = this.task.blobs.length;
                 for (var idx = 0; idx < len; idx++) {
-                    this.task.blobs[i].enqueueErrorBlocks();
+                    this.task.blobs[idx].enqueueErrorBlocks();
                 }
             }
             this.task.send(blob);
